@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCPing Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --dark: #141413;
+  --light: #faf9f5;
+  --mid-gray: #b0aea5;
+  --light-gray: #e8e6dc;
+  --orange: #d97757;
+  --orange-hover: #c4684a;
+  --orange-light: rgba(217,119,87,0.08);
+  --orange-border: rgba(217,119,87,0.2);
+  --blue: #6a9bcc;
+  --blue-light: rgba(106,155,204,0.08);
+  --green: #788c5d;
+  --green-light: rgba(120,140,93,0.08);
+  --red: #c0392b;
+  --red-light: rgba(192,57,43,0.08);
+  --card-bg: #ffffff;
+  --card-border: #e8e6dc;
+  --shadow-sm: 0 1px 3px rgba(20,20,19,0.04);
+  --shadow-md: 0 4px 12px rgba(20,20,19,0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Lora', Georgia, serif;
+  background: var(--light);
+  color: var(--dark);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, button, .stat-card .label, .target-tab, .time-range button, .loss-table th {
+  font-family: 'Poppins', Arial, sans-serif;
+}
+
+/* ---- Header ---- */
+.header {
+  background: var(--card-bg);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--light-gray);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-logo {
+  width: 32px; height: 32px;
+  background: var(--orange);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-family: 'Poppins'; font-weight: 700; font-size: 16px;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--dark);
+  letter-spacing: -0.3px;
+}
+.header h1 span { color: var(--orange); }
+
+.add-form { display: flex; gap: 8px; align-items: center; }
+.add-form input {
+  background: var(--light);
+  border: 1px solid var(--light-gray);
+  color: var(--dark);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-family: 'Lora', Georgia, serif;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.add-form input:focus {
+  outline: none;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px var(--orange-light);
+}
+.add-form input.host-input { width: 220px; }
+.add-form input.port-input { width: 90px; }
+.add-form button {
+  background: var(--orange);
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+.add-form button:hover {
+  background: var(--orange-hover);
+  box-shadow: 0 2px 8px rgba(217,119,87,0.25);
+}
+.add-form button:active { transform: scale(0.97); }
+
+/* ---- Container ---- */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+/* ---- Target Tabs ---- */
+.target-tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.target-tab {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--mid-gray);
+  padding: 8px 18px;
+  border-radius: 100px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.target-tab:hover { border-color: var(--orange-border); color: var(--dark); }
+.target-tab.active {
+  background: var(--orange-light);
+  color: var(--orange);
+  border-color: var(--orange-border);
+  font-weight: 600;
+}
+.target-tab .remove-btn {
+  color: var(--mid-gray);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s;
+}
+.target-tab .remove-btn:hover { background: var(--red-light); color: var(--red); }
+.target-tab .pause-btn {
+  color: var(--mid-gray);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 100px;
+  border: 1px solid var(--light-gray);
+  background: var(--light);
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.target-tab .pause-btn:hover { background: var(--blue-light); color: var(--blue); border-color: var(--blue); }
+.target-tab .pause-btn.is-paused { background: var(--green-light); color: var(--green); border-color: var(--green); }
+.target-tab.paused { opacity: 0.55; }
+.target-tab.paused .tab-label { text-decoration: line-through; }
+.paused-badge {
+  background: var(--light-gray);
+  color: var(--mid-gray);
+  padding: 1px 6px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+}
+
+/* ---- Time Range ---- */
+.time-range { display: flex; gap: 4px; margin-bottom: 24px; }
+.time-range button {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--mid-gray);
+  padding: 5px 14px;
+  border-radius: 100px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.time-range button:hover { color: var(--dark); border-color: var(--mid-gray); }
+.time-range button.active {
+  background: var(--dark);
+  color: var(--light);
+  border-color: var(--dark);
+}
+
+/* ---- Stats Grid ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.stat-card .label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mid-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.stat-card .value {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--dark);
+  line-height: 1.1;
+}
+.stat-card .value.accent { color: var(--orange); }
+.stat-card .value.loss { color: var(--red); }
+.stat-card .value.good { color: var(--green); }
+.stat-card .value.blue { color: var(--blue); }
+
+/* ---- Chart Box ---- */
+.chart-box {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.chart-box h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dark);
+  margin-bottom: 16px;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chart-box h3::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background: var(--orange);
+  border-radius: 2px;
+  display: inline-block;
+}
+#latencyChart { width: 100%; height: 350px; }
+
+/* ---- Loss Table ---- */
+.loss-table { width: 100%; border-collapse: collapse; }
+.loss-table th, .loss-table td {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 13px;
+}
+.loss-table th {
+  color: var(--mid-gray);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 2px solid var(--light-gray);
+}
+.loss-table td { border-bottom: 1px solid var(--light-gray); }
+.loss-table tr:hover td { background: var(--red-light); }
+.loss-badge {
+  background: var(--red);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+}
+
+/* ---- Empty State ---- */
+.empty {
+  text-align: center;
+  color: var(--mid-gray);
+  padding: 48px 20px;
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .header { flex-direction: column; gap: 12px; padding: 16px; }
+  .container { padding: 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .add-form input.host-input { width: 160px; }
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">T</div>
+    <h1>TCPing <span>Monitor</span></h1>
+  </div>
+  <div class="add-form">
+    <input type="text" id="hostInput" class="host-input" placeholder="域名或 IP 地址" value="">
+    <input type="number" id="portInput" class="port-input" placeholder="端口" value="443">
+    <button onclick="addTarget()">+ 添加监控</button>
+  </div>
+</div>
+<div class="container">
+  <div class="target-tabs" id="targetTabs"></div>
+  <div class="time-range" id="timeRange">
+    <button data-min="5">5 分钟</button>
+    <button data-min="60" class="active">1 小时</button>
+    <button data-min="1440">24 小时</button>
+    <button data-min="0">全部</button>
+  </div>
+  <div class="stats-grid" id="statsGrid"></div>
+  <div class="chart-box">
+    <h3>延迟趋势</h3>
+    <div id="latencyChart"></div>
+  </div>
+  <div class="chart-box">
+    <h3>丢包事件</h3>
+    <div id="lossSection"></div>
+  </div>
+</div>
+<script>
+const API = '';
+let targets = [];
+let activeTarget = null;
+let activeMinutes = 60;
+let chart = null;
+let refreshTimer = null;
+
+function initChart() {
+  chart = echarts.init(document.getElementById('latencyChart'));
+  window.addEventListener('resize', () => chart && chart.resize());
+}
+
+async function fetchJSON(url) {
+  const r = await fetch(API + url);
+  return r.json();
+}
+
+async function loadTargets() {
+  targets = await fetchJSON('/api/targets');
+  renderTabs();
+  if (targets.length > 0 && !activeTarget) {
+    activeTarget = targets[0];
+    renderTabs();
+  }
+  if (activeTarget) refreshData();
+}
+
+function renderTabs() {
+  const el = document.getElementById('targetTabs');
+  if (targets.length === 0) {
+    el.innerHTML = '<div class="empty">暂无监控目标 — 在上方输入域名和端口开始监控</div>';
+    return;
+  }
+  el.innerHTML = targets.map(t => {
+    const key = t.host + ':' + t.port;
+    const isActive = activeTarget && activeTarget.host === t.host && activeTarget.port === t.port;
+    const isPaused = t.paused === true;
+    const pausedCls = isPaused ? ' paused' : '';
+    const pauseIcon = isPaused ? '&#9654; 恢复' : '&#10074;&#10074; 暂停';
+    const pauseBtnCls = isPaused ? 'pause-btn is-paused' : 'pause-btn';
+    const pauseTitle = isPaused ? '恢复' : '暂停';
+    const pausedTag = isPaused ? ' <span class="paused-badge">已暂停</span>' : '';
+    return `<div class="target-tab ${isActive?'active':''}${pausedCls}" onclick="selectTarget('${t.host}',${t.port})">
+      <span class="tab-label">${key}</span>${pausedTag}
+      <span class="${pauseBtnCls}" onclick="event.stopPropagation();togglePause('${t.host}',${t.port},${isPaused})">${pauseIcon}</span>
+      <span class="remove-btn" onclick="event.stopPropagation();removeTarget('${t.host}',${t.port})">&times;</span>
+    </div>`;
+  }).join('');
+}
+
+function selectTarget(host, port) {
+  activeTarget = {host, port};
+  renderTabs();
+  refreshData();
+}
+
+async function addTarget() {
+  const host = document.getElementById('hostInput').value.trim();
+  const port = parseInt(document.getElementById('portInput').value);
+  if (!host || !port) return alert('请输入目标地址和端口');
+  await fetch(API + '/api/targets', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({host, port})
+  });
+  document.getElementById('hostInput').value = '';
+  activeTarget = {host, port};
+  await loadTargets();
+}
+
+async function togglePause(host, port, isPaused) {
+  const action = isPaused ? 'resume' : 'pause';
+  await fetch(API + `/api/targets/${action}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({host, port})
+  });
+  await loadTargets();
+}
+
+async function removeTarget(host, port) {
+  if (!confirm(`确认删除 ${host}:${port}？`)) return;
+  await fetch(API + `/api/targets?host=${encodeURIComponent(host)}&port=${port}`, {method:'DELETE'});
+  if (activeTarget && activeTarget.host === host && activeTarget.port === port) activeTarget = null;
+  await loadTargets();
+}
+
+async function refreshData() {
+  if (!activeTarget) return;
+  const {host, port} = activeTarget;
+  const minParam = activeMinutes > 0 ? `&minutes=${activeMinutes}` : '';
+  const [statsAll, stats5, history, losses] = await Promise.all([
+    fetchJSON(`/api/stats?target=${encodeURIComponent(host)}&port=${port}${minParam}`),
+    fetchJSON(`/api/stats?target=${encodeURIComponent(host)}&port=${port}&minutes=5`),
+    fetchJSON(`/api/history?target=${encodeURIComponent(host)}&port=${port}${minParam}`),
+    fetchJSON(`/api/losses?target=${encodeURIComponent(host)}&port=${port}${minParam}`),
+  ]);
+  renderStats(statsAll, stats5);
+  renderChart(history);
+  renderLosses(losses);
+}
+
+function renderStats(stats, stats5) {
+  const el = document.getElementById('statsGrid');
+  const lrClass = stats.loss_rate > 0 ? 'loss' : 'good';
+  const lr5Class = stats5.loss_rate > 0 ? 'loss' : 'good';
+  el.innerHTML = `
+    <div class="stat-card"><div class="label">总探测</div><div class="value accent">${stats.total}</div></div>
+    <div class="stat-card"><div class="label">丢包率</div><div class="value ${lrClass}">${stats.loss_rate}%</div></div>
+    <div class="stat-card"><div class="label">近5分钟丢包</div><div class="value ${lr5Class}">${stats5.loss_rate}%</div></div>
+    <div class="stat-card"><div class="label">平均延迟</div><div class="value blue">${stats.avg_ms ?? '-'} ms</div></div>
+    <div class="stat-card"><div class="label">最小延迟</div><div class="value good">${stats.min_ms ?? '-'} ms</div></div>
+    <div class="stat-card"><div class="label">最大延迟</div><div class="value">${stats.max_ms ?? '-'} ms</div></div>
+    <div class="stat-card"><div class="label">丢包次数</div><div class="value loss">${stats.lost}</div></div>
+  `;
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleTimeString('zh-CN', {hour12:false});
+}
+function fmtDateTime(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleString('zh-CN', {hour12:false});
+}
+
+function renderChart(history) {
+  if (!history.length) {
+    chart.clear();
+    chart.setOption({title:{text:'等待数据...',left:'center',top:'center',textStyle:{color:'#b0aea5',fontSize:14,fontFamily:'Poppins'}}});
+    return;
+  }
+  const times = history.map(h => fmtTime(h.timestamp));
+  const latencies = history.map(h => h.success ? h.latency_ms : null);
+  const lossPoints = [];
+  history.forEach((h, i) => {
+    if (!h.success) {
+      lossPoints.push({ xAxis: i, yAxis: 0 });
+    }
+  });
+
+  chart.setOption({
+    tooltip: {trigger:'axis', backgroundColor:'#fff', borderColor:'#e8e6dc',
+      textStyle:{color:'#141413', fontFamily:'Lora'},
+      extraCssText: 'box-shadow: 0 4px 12px rgba(20,20,19,0.1); border-radius: 8px;',
+      formatter: function(params) {
+        const p = params[0];
+        const idx = p.dataIndex;
+        const h = history[idx];
+        if (h.success) return `<span style="font-family:Poppins;font-size:12px;color:#b0aea5">${p.axisValue}</span><br/><span style="font-size:15px;font-weight:600">${h.latency_ms} ms</span>`;
+        return `<span style="font-family:Poppins;font-size:12px;color:#b0aea5">${p.axisValue}</span><br/><span style="color:#c0392b;font-weight:600">丢包</span> ${h.error_msg || 'timeout'}`;
+      }
+    },
+    grid: {left:55, right:16, top:16, bottom:36},
+    xAxis: {type:'category', data:times,
+      axisLine:{lineStyle:{color:'#e8e6dc'}},
+      axisTick:{show:false},
+      axisLabel:{color:'#b0aea5',fontSize:11,fontFamily:'Poppins'},
+      splitLine:{show:false}},
+    yAxis: {type:'value', name:'ms',
+      nameTextStyle:{color:'#b0aea5',fontFamily:'Poppins',fontSize:11},
+      axisLine:{show:false},
+      axisTick:{show:false},
+      axisLabel:{color:'#b0aea5',fontFamily:'Poppins'},
+      splitLine:{lineStyle:{color:'#f0efe9',type:'dashed'}}},
+    series: [{
+      type:'line', data:latencies, smooth:true, symbol:'none',
+      lineStyle:{color:'#d97757', width:2},
+      areaStyle:{color: new echarts.graphic.LinearGradient(0,0,0,1,[
+        {offset:0, color:'rgba(217,119,87,0.15)'},
+        {offset:1, color:'rgba(217,119,87,0.01)'}
+      ])},
+      markPoint: {data: lossPoints.map(p => ({
+        coord: [p.xAxis, 0], symbol:'triangle', symbolSize:10,
+        itemStyle:{color:'#c0392b'}, label:{show:false}
+      }))}
+    }]
+  }, true);
+}
+
+function renderLosses(losses) {
+  const el = document.getElementById('lossSection');
+  if (!losses.length) {
+    el.innerHTML = '<div class="empty">暂无丢包记录</div>';
+    return;
+  }
+  el.innerHTML = `<table class="loss-table">
+    <thead><tr><th>时间</th><th>状态</th><th>错误信息</th></tr></thead>
+    <tbody>${losses.map(l => `<tr>
+      <td style="font-family:Poppins;font-size:13px">${fmtDateTime(l.timestamp)}</td>
+      <td><span class="loss-badge">LOSS</span></td>
+      <td style="color:#b0aea5">${l.error_msg || '-'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// 时间范围切换
+document.getElementById('timeRange').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#timeRange button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  activeMinutes = parseInt(e.target.dataset.min);
+  refreshData();
+});
+
+// 初始化
+initChart();
+loadTargets();
+refreshTimer = setInterval(() => { if (activeTarget) refreshData(); }, 2000);
+</script>
+</body>
+</html>
